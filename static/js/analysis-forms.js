@@ -40,12 +40,32 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('tr.vrio-main-row').forEach(row => {
         // Add listeners
         row.querySelectorAll('input[type="range"]').forEach(input => {
-            input.addEventListener('input', () => updateVRIOScore(row));
+            input.addEventListener('input', () => {
+                updateVRIOScore(row);
+                // Trigger autosave
+                const form = row.closest('form');
+                if (form) debouncedAutoSave(form);
+            });
         });
         // Initial calc
         updateVRIOScore(row);
     });
 });
+
+// Debounce helper
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+const debouncedAutoSave = debounce((form) => handleAutoSave(form), 1000);
 
 function handleAutoSave(form) {
     const businessId = form.dataset.businessId;
@@ -282,7 +302,11 @@ function addVRIORow() {
 
     // Add listeners for score updates
     trMain.querySelectorAll('input[type="range"]').forEach(input => {
-        input.addEventListener('input', () => updateVRIOScore(trMain));
+        input.addEventListener('input', () => {
+            updateVRIOScore(trMain);
+            const form = tbody.closest('form');
+            if (form) debouncedAutoSave(form);
+        });
     });
 
     // Initial calculation
@@ -367,3 +391,264 @@ function removeWardleyRow(button) {
     button.closest('tr').remove();
     handleAutoSave(form);
 }
+
+
+// ===== Scenario Planning =====
+
+// State for scenario planning
+let selectedStrategyId = null;
+let selectedFutureId = null;
+
+// Generate unique IDs
+function generateId() {
+    return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Get business ID from scenario planning container
+function getScenarioBusinessId() {
+    const container = document.querySelector('.scenario-planning');
+    return container ? container.dataset.businessId : null;
+}
+
+// Add a new strategy
+function addStrategy() {
+    if (!window.scenarioPlanning) {
+        window.scenarioPlanning = { strategies: [], futures: [], cells: {} };
+    }
+
+    const newStrategy = {
+        id: generateId(),
+        name: '',
+        description: ''
+    };
+
+    window.scenarioPlanning.strategies.push(newStrategy);
+    saveScenarioPlanning().then(() => {
+        // Reload to show new column
+        location.reload();
+    });
+}
+
+// Remove a strategy
+function removeStrategy(strategyId) {
+    if (!confirm('Remove this strategy? All related analysis will be deleted.')) return;
+
+    window.scenarioPlanning.strategies = window.scenarioPlanning.strategies.filter(s => s.id !== strategyId);
+
+    // Remove related cells
+    const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.startsWith(strategyId + '_'));
+    keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
+
+    saveScenarioPlanning().then(() => location.reload());
+}
+
+// Add a new future
+function addFuture() {
+    if (!window.scenarioPlanning) {
+        window.scenarioPlanning = { strategies: [], futures: [], cells: {} };
+    }
+
+    const newFuture = {
+        id: generateId(),
+        name: '',
+        description: ''
+    };
+
+    window.scenarioPlanning.futures.push(newFuture);
+    saveScenarioPlanning().then(() => {
+        location.reload();
+    });
+}
+
+// Remove a future
+function removeFuture(futureId) {
+    if (!confirm('Remove this future? All related analysis will be deleted.')) return;
+
+    window.scenarioPlanning.futures = window.scenarioPlanning.futures.filter(f => f.id !== futureId);
+
+    // Remove related cells
+    const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.endsWith('_' + futureId));
+    keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
+
+    saveScenarioPlanning().then(() => location.reload());
+}
+
+// Select a cell to edit
+function selectScenarioCell(strategyId, futureId) {
+    selectedStrategyId = strategyId;
+    selectedFutureId = futureId;
+
+    // Highlight selected cell
+    document.querySelectorAll('.scenario-cell').forEach(c => c.classList.remove('selected'));
+    const cell = document.querySelector(`.scenario-cell[data-strategy-id="${strategyId}"][data-future-id="${futureId}"]`);
+    if (cell) cell.classList.add('selected');
+
+    // Get strategy and future data
+    const strategy = window.scenarioPlanning.strategies.find(s => s.id === strategyId);
+    const future = window.scenarioPlanning.futures.find(f => f.id === futureId);
+    const cellKey = `${strategyId}_${futureId}`;
+    const cellData = window.scenarioPlanning.cells[cellKey] || { thoughts: '', summary: '' };
+
+    // Update labels with actual names
+    const strategyName = strategy?.name || 'Strategy';
+    const futureName = future?.name || 'Future';
+    document.getElementById('strategy-description-label').textContent = 'Strategy: ' + (strategyName || 'Unnamed');
+    document.getElementById('future-description-label').textContent = 'Future: ' + (futureName || 'Unnamed');
+
+    // Populate detail panel
+    document.getElementById('strategy-description').value = strategy?.description || '';
+    document.getElementById('future-description').value = future?.description || '';
+    document.getElementById('cell-thoughts').value = cellData.thoughts || '';
+    document.getElementById('cell-summary').value = cellData.summary || '';
+
+    // Show detail panel
+    document.getElementById('scenario-detail-panel').style.display = 'block';
+
+    // Scroll to panel
+    document.getElementById('scenario-detail-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Close detail panel
+function closeScenarioDetail() {
+    selectedStrategyId = null;
+    selectedFutureId = null;
+    document.getElementById('scenario-detail-panel').style.display = 'none';
+    document.querySelectorAll('.scenario-cell').forEach(c => c.classList.remove('selected'));
+}
+
+// Save scenario planning data
+async function saveScenarioPlanning() {
+    const businessId = getScenarioBusinessId();
+    if (!businessId) return;
+
+    const response = await fetch(`/business/${businessId}/scenario-planning`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(window.scenarioPlanning)
+    });
+
+    const result = await response.json();
+    if (result.success) {
+        showScenarioSaveStatus();
+    }
+    return result;
+}
+
+function showScenarioSaveStatus() {
+    const status = document.getElementById('scenario-save-status');
+    if (status) {
+        status.textContent = 'Saved';
+        status.style.opacity = '1';
+        status.style.color = 'var(--color-success)';
+        setTimeout(() => {
+            status.style.opacity = '0';
+        }, 2000);
+    }
+}
+
+// Debounced save for scenario planning
+const debouncedScenarioSave = debounce(() => saveScenarioPlanning(), 500);
+
+// Initialize scenario planning event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    // Strategy name inputs
+    document.querySelectorAll('.strategy-name').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const header = e.target.closest('.strategy-header');
+            const strategyId = header?.dataset.id;
+            if (strategyId) {
+                const strategy = window.scenarioPlanning.strategies.find(s => s.id === strategyId);
+                if (strategy) {
+                    strategy.name = e.target.value;
+                    debouncedScenarioSave();
+                }
+            }
+        });
+    });
+
+    // Future name inputs
+    document.querySelectorAll('.future-name').forEach(input => {
+        input.addEventListener('input', (e) => {
+            const row = e.target.closest('tr');
+            const futureId = row?.dataset.futureId;
+            if (futureId) {
+                const future = window.scenarioPlanning.futures.find(f => f.id === futureId);
+                if (future) {
+                    future.name = e.target.value;
+                    debouncedScenarioSave();
+                }
+            }
+        });
+    });
+
+    // Detail panel inputs
+    const strategyDesc = document.getElementById('strategy-description');
+    const futureDesc = document.getElementById('future-description');
+    const cellThoughts = document.getElementById('cell-thoughts');
+    const cellSummary = document.getElementById('cell-summary');
+
+    if (strategyDesc) {
+        strategyDesc.addEventListener('input', () => {
+            if (selectedStrategyId) {
+                const strategy = window.scenarioPlanning.strategies.find(s => s.id === selectedStrategyId);
+                if (strategy) {
+                    strategy.description = strategyDesc.value;
+                    debouncedScenarioSave();
+                }
+            }
+        });
+    }
+
+    if (futureDesc) {
+        futureDesc.addEventListener('input', () => {
+            if (selectedFutureId) {
+                const future = window.scenarioPlanning.futures.find(f => f.id === selectedFutureId);
+                if (future) {
+                    future.description = futureDesc.value;
+                    debouncedScenarioSave();
+                }
+            }
+        });
+    }
+
+    if (cellThoughts) {
+        cellThoughts.addEventListener('input', () => {
+            if (selectedStrategyId && selectedFutureId) {
+                const cellKey = `${selectedStrategyId}_${selectedFutureId}`;
+                if (!window.scenarioPlanning.cells[cellKey]) {
+                    window.scenarioPlanning.cells[cellKey] = {};
+                }
+                window.scenarioPlanning.cells[cellKey].thoughts = cellThoughts.value;
+                debouncedScenarioSave();
+            }
+        });
+    }
+
+    if (cellSummary) {
+        cellSummary.addEventListener('input', () => {
+            if (selectedStrategyId && selectedFutureId) {
+                const cellKey = `${selectedStrategyId}_${selectedFutureId}`;
+                if (!window.scenarioPlanning.cells[cellKey]) {
+                    window.scenarioPlanning.cells[cellKey] = {};
+                }
+                window.scenarioPlanning.cells[cellKey].summary = cellSummary.value;
+
+                // Update the grid cell display
+                const cell = document.querySelector(`.scenario-cell[data-strategy-id="${selectedStrategyId}"][data-future-id="${selectedFutureId}"]`);
+                if (cell) {
+                    const summarySpan = cell.querySelector('.cell-summary');
+                    if (summarySpan) {
+                        summarySpan.textContent = cellSummary.value || '—';
+                    }
+                    if (cellSummary.value) {
+                        cell.classList.add('has-summary');
+                    } else {
+                        cell.classList.remove('has-summary');
+                    }
+                }
+
+                debouncedScenarioSave();
+            }
+        });
+    }
+});

@@ -58,7 +58,18 @@ CREATE TABLE IF NOT EXISTS summaries (
     FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
 );
 
+-- Scenario Planning table
+CREATE TABLE IF NOT EXISTS scenario_planning (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    business_id INTEGER NOT NULL UNIQUE,
+    data_json TEXT NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_research_items_business ON research_items(business_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_research_item ON quotes(research_item_id);
 CREATE INDEX IF NOT EXISTS idx_analyses_business ON analyses(business_id);
+CREATE INDEX IF NOT EXISTS idx_scenario_planning_business ON scenario_planning(business_id);

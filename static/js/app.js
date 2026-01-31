@@ -29,17 +29,17 @@ document.addEventListener('keydown', (e) => {
 document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
         const tabId = tab.dataset.tab;
-        
+
         // Update tab buttons
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
+
         // Update tab content
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.remove('active');
         });
         document.getElementById(tabId).classList.add('active');
-        
+
         // Update URL hash
         window.location.hash = tabId;
     });
@@ -67,7 +67,7 @@ function showEditResearchModal(itemId) {
     // Find the item data
     const item = window.researchItems.find(i => i.id === itemId);
     if (!item) return;
-    
+
     // Create modal dynamically or populate existing one
     // For simplicity, we'll use an alert for now
     alert('Edit functionality - Coming soon. For now, delete and re-add.');
@@ -77,7 +77,7 @@ function showEditResearchModal(itemId) {
 function toggleFramework(slug) {
     const content = document.getElementById(`framework-${slug}`);
     const header = content.parentElement.querySelector('.toggle-icon');
-    
+
     if (content.style.display === 'none') {
         content.style.display = 'block';
         header.style.transform = 'rotate(180deg)';
@@ -91,13 +91,13 @@ function toggleFramework(slug) {
 document.querySelectorAll('.editor-tab').forEach(tab => {
     tab.addEventListener('click', () => {
         const view = tab.dataset.view;
-        
+
         document.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        
+
         const textarea = document.getElementById('summary-markdown');
         const preview = document.getElementById('summary-preview');
-        
+
         if (view === 'edit') {
             textarea.style.display = 'block';
             preview.style.display = 'none';
@@ -123,25 +123,73 @@ function simpleMarkdown(text) {
         .replace(/\n/gim, '<br>');
 }
 
-function saveSummary() {
+// Utility: Debounce
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Setup autosave
+const summaryTextarea = document.getElementById('summary-markdown');
+if (summaryTextarea) {
+    const statusEl = document.getElementById('summary-save-status');
+    const debouncedSave = debounce(() => {
+        saveSummary(true);
+    }, 1000);
+
+    summaryTextarea.addEventListener('input', () => {
+        if (statusEl) {
+            statusEl.textContent = 'Saving...';
+            statusEl.style.opacity = '1';
+        }
+        debouncedSave();
+    });
+}
+
+function saveSummary(isAutosave = false) {
     const textarea = document.getElementById('summary-markdown');
+    if (!textarea) return;
+
     const businessId = textarea.dataset.businessId;
-    
+    const statusEl = document.getElementById('summary-save-status');
+
     fetch(`/business/${businessId}/summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ markdown: textarea.value })
     })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            showNotification('Summary saved!', 'success');
-        }
-    })
-    .catch(err => {
-        showNotification('Error saving summary', 'error');
-        console.error(err);
-    });
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                if (isAutosave && statusEl) {
+                    statusEl.textContent = 'Saved';
+                    setTimeout(() => {
+                        statusEl.style.opacity = '0';
+                    }, 2000);
+                } else {
+                    showNotification('Summary saved!', 'success');
+                    if (statusEl) {
+                        statusEl.textContent = '';
+                    }
+                }
+            }
+        })
+        .catch(err => {
+            if (isAutosave && statusEl) {
+                statusEl.textContent = 'Error saving';
+                statusEl.style.color = '#ef476f';
+            } else {
+                showNotification('Error saving summary', 'error');
+            }
+            console.error(err);
+        });
 }
 
 // ===== Notifications =====
@@ -161,9 +209,9 @@ function showNotification(message, type = 'info') {
         z-index: 2000;
         animation: slideIn 0.3s ease;
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease forwards';
         setTimeout(() => notification.remove(), 300);
