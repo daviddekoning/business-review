@@ -118,12 +118,14 @@ function collectFiveForcesData(form) {
     const data = {};
 
     forces.forEach(force => {
-        const levelSelect = form.querySelector(`select[name="${force}_level"]`);
-        const factorInputs = form.querySelectorAll(`input[name="${force}_factors[]"]`);
+        const descriptionInput = form.querySelector(`textarea[name="${force}_description"]`);
+        const impactInput = form.querySelector(`textarea[name="${force}_impact"]`);
+        const significanceInput = form.querySelector(`input[name="${force}_significance"]:checked`);
 
         data[force] = {
-            level: levelSelect ? levelSelect.value : 'medium',
-            factors: Array.from(factorInputs).map(input => input.value.trim()).filter(v => v)
+            description: descriptionInput ? descriptionInput.value.trim() : '',
+            impact: impactInput ? impactInput.value.trim() : '',
+            significance: significanceInput ? significanceInput.value : 'medium'
         };
     });
 
@@ -200,24 +202,7 @@ function removeItem(button) {
     handleAutoSave(form);
 }
 
-// Five Forces - Add factor item
-function addForceItem(force) {
-    const container = document.querySelector(`[data-force="${force}"] .force-factors`);
-    const index = container.children.length;
 
-    const div = document.createElement('div');
-    div.className = 'factor-item';
-    div.dataset.index = index;
-    div.innerHTML = `
-        <input type="text" name="${force}_factors[]" placeholder="Add factor...">
-        <button type="button" class="remove-item" onclick="removeItem(this)">×</button>
-    `;
-    container.appendChild(div);
-    div.querySelector('input').focus();
-
-    const form = container.closest('form');
-    handleAutoSave(form);
-}
 
 // VRIO - Add row
 function addVRIORow() {

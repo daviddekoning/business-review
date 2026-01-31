@@ -45,48 +45,69 @@ class FiveForcesAnalysis(AnalysisTemplate):
         ),
     ]
 
-    LEVELS = ["low", "medium", "high"]
+    LEVELS = ["high", "medium", "low"]
 
     def get_empty_data(self) -> dict:
-        return {force[0]: {"level": "medium", "factors": []} for force in self.FORCES}
+        return {
+            force[0]: {"significance": "medium", "description": "", "impact": ""}
+            for force in self.FORCES
+        }
 
     def get_html_form(self, data: dict) -> str:
         html_parts = ['<div class="five-forces-analysis">']
 
-        for key, label, description in self.FORCES:
-            force_data = data.get(key, {"level": "medium", "factors": []})
-            level = force_data.get("level", "medium")
-            factors = force_data.get("factors", [])
+        for key, label, help_text in self.FORCES:
+            force_data = data.get(key, {})
+            # Handle migration/backward compatibility if old format (list of factors) exists
+            # by joining factors into description if present, or just defaulting to empty
+            if "factors" in force_data:
+                # Old format
+                significance = force_data.get("level", "medium")
+                description = "\n".join(force_data.get("factors", []))
+                impact = ""
+            else:
+                # New format
+                significance = force_data.get("significance", "medium")
+                description = force_data.get("description", "")
+                impact = force_data.get("impact", "")
 
-            # Level selector
-            level_options = "\n".join(
-                f'<option value="{l}" {"selected" if l == level else ""}>{l.capitalize()}</option>'
-                for l in self.LEVELS
-            )
-
-            # Factor items
-            factors_html = "\n".join(
-                f'<div class="factor-item" data-index="{i}">'
-                f'<input type="text" name="{key}_factors[]" value="{self._escape(f)}" placeholder="Add factor...">'
-                f'<button type="button" class="remove-item" onclick="removeItem(this)">×</button>'
-                f"</div>"
-                for i, f in enumerate(factors)
-            )
+            # Radio buttons for significance
+            radio_options = ""
+            for l in self.LEVELS:
+                checked = "checked" if l == significance else ""
+                radio_options += (
+                    f'<label class="radio-option">'
+                    f'<input type="radio" name="{key}_significance" value="{l}" {checked}>'
+                    f"{l.capitalize()}"
+                    f"</label>"
+                )
 
             html_parts.append(f'''
             <div class="force-group" data-force="{key}">
-                <h4>{label}</h4>
-                <p class="force-description">{description}</p>
-                <div class="level-selector">
-                    <label>Level:</label>
-                    <select name="{key}_level" onchange="updateForce('{key}', this.value)">
-                        {level_options}
-                    </select>
+                <div class="force-header">
+                    <h4>{label}</h4>
+                    <p class="force-help">{help_text}</p>
                 </div>
-                <div class="force-factors">
-                    {factors_html}
+                
+                <div class="force-inputs-container">
+                    <div class="force-text-areas">
+                        <div class="force-text-area-wrapper">
+                            <label>Description of Force</label>
+                            <textarea name="{key}_description" placeholder="Describe the force...">{self._escape(description)}</textarea>
+                        </div>
+                        <div class="force-text-area-wrapper">
+                            <label>Impact on Business</label>
+                            <textarea name="{key}_impact" placeholder="Describe the impact...">{self._escape(impact)}</textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="force-significance">
+                        <label class="main-label">Significance</label>
+                        <div class="radio-group">
+                            {radio_options}
+                        </div>
+                    </div>
                 </div>
-                <button type="button" class="add-item" onclick="addForceItem('{key}')">+ Add Factor</button>
             </div>
             ''')
 
@@ -96,27 +117,64 @@ class FiveForcesAnalysis(AnalysisTemplate):
     def to_plain_text(self, data: dict) -> str:
         lines = ["# Porter's Five Forces Analysis", ""]
 
-        for key, label, _ in self.FORCES:
-            force_data = data.get(key, {"level": "medium", "factors": []})
-            level = force_data.get("level", "medium")
-            factors = force_data.get("factors", [])
+        # Helper to get significance weight
+        weights = {"high": 3, "medium": 2, "low": 1}
 
-            lines.append(f"## {label}")
-            lines.append(f"**Level:** {level.capitalize()}")
-            lines.append("")
-
-            if factors:
-                lines.append("**Factors:**")
-                for f in factors:
-                    lines.append(f"- {f}")
+        # Collect all forces with their data and weight
+        forces_with_data = []
+        for key, limits, _ in self.FORCES:
+            force_data = data.get(key, {})
+            if "factors" in force_data:
+                # Old format
+                significance = force_data.get("level", "medium")
+                description = "\n".join(
+                    [f"- {f}" for f in force_data.get("factors", [])]
+                )
+                impact = ""
             else:
-                lines.append("- (No factors identified)")
+                significance = force_data.get("significance", "medium")
+                description = force_data.get("description", "")
+                impact = force_data.get("impact", "")
+
+            weight = weights.get(significance.lower(), 0)
+            forces_with_data.append(
+                {
+                    "label": limits,  # limits is actually the label in the tuple unpacking above
+                    "significance": significance,
+                    "description": description,
+                    "impact": impact,
+                    "weight": weight,
+                }
+            )
+
+        # Sort by weight descending
+        forces_with_data.sort(key=lambda x: x["weight"], reverse=True)
+
+        for force in forces_with_data:
+            lines.append(f"## {force['label']}")
+            lines.append(f"**Significance:** {force['significance'].capitalize()}")
             lines.append("")
+
+            if force["description"]:
+                lines.append("**Description:**")
+                lines.append(force["description"])
+                lines.append("")
+
+            if force["impact"]:
+                lines.append("**Impact:**")
+                lines.append(force["impact"])
+                lines.append("")
+
+            if not force["description"] and not force["impact"]:
+                lines.append("(No details provided)")
+                lines.append("")
 
         return "\n".join(lines)
 
     @staticmethod
     def _escape(text: str) -> str:
+        if not text:
+            return ""
         return (
             text.replace("&", "&amp;")
             .replace("<", "&lt;")

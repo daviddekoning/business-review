@@ -969,3 +969,88 @@ a:hover {
     border-radius: var(--radius-md);
     font-size: 0.95rem;
 }
+
+/* Five Forces Layout */
+.force-inputs-container {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+}
+
+@media (max-width: 768px) {
+    .force-inputs-container {
+        flex-direction: column;
+    }
+}
+
+.force-text-areas {
+    flex: 3;
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+}
+
+@media (max-width: 600px) {
+    .force-text-areas {
+        flex-direction: column;
+    }
+}
+
+.force-text-area-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.force-text-area-wrapper label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.force-text-area-wrapper textarea {
+    min-height: 120px;
+    resize: vertical;
+}
+
+.force-significance {
+    flex: 1;
+    min-width: 150px;
+}
+
+.force-significance label.main-label {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+    display: block;
+    font-weight: 500;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background: var(--color-bg);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.95rem;
+}
+
+.radio-option input[type="radio"] {
+    accent-color: var(--color-primary);
+}
+
+.force-help {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+}
