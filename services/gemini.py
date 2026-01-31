@@ -3,7 +3,10 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from google import genai
+
+load_dotenv()
 
 
 def get_client() -> genai.Client:
