@@ -35,6 +35,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Initialize VRIO Scores
+    document.querySelectorAll('tr.vrio-main-row').forEach(row => {
+        // Add listeners
+        row.querySelectorAll('input[type="range"]').forEach(input => {
+            input.addEventListener('input', () => updateVRIOScore(row));
+        });
+        // Initial calc
+        updateVRIOScore(row);
+    });
 });
 
 function handleAutoSave(form) {
@@ -132,20 +142,26 @@ function collectFiveForcesData(form) {
     return data;
 }
 
+// VRIO Data Collection
 function collectVRIOData(form) {
-    const rows = form.querySelectorAll('tbody tr');
+    const mainRows = form.querySelectorAll('tr.vrio-main-row');
     const resources = [];
 
-    rows.forEach((row, i) => {
+    mainRows.forEach((row, i) => {
         const nameInput = row.querySelector(`input[name="resource_${i}_name"]`);
         if (!nameInput || !nameInput.value.trim()) return;
 
+        // Description is in the next row
+        const descRow = row.nextElementSibling;
+        const descInput = descRow.querySelector(`textarea[name="resource_${i}_description"]`);
+
         resources.push({
             name: nameInput.value.trim(),
-            valuable: row.querySelector(`input[name="resource_${i}_valuable"]`)?.checked || false,
-            rare: row.querySelector(`input[name="resource_${i}_rare"]`)?.checked || false,
-            costly_to_imitate: row.querySelector(`input[name="resource_${i}_costly_to_imitate"]`)?.checked || false,
-            organized: row.querySelector(`input[name="resource_${i}_organized"]`)?.checked || false
+            description: descInput ? descInput.value.trim() : '',
+            valuable: parseInt(row.querySelector(`input[name="resource_${i}_valuable"]`)?.value || '3'),
+            rare: parseInt(row.querySelector(`input[name="resource_${i}_rare"]`)?.value || '3'),
+            costly_to_imitate: parseInt(row.querySelector(`input[name="resource_${i}_costly_to_imitate"]`)?.value || '3'),
+            organized: parseInt(row.querySelector(`input[name="resource_${i}_organized"]`)?.value || '3')
         });
     });
 
@@ -207,26 +223,70 @@ function removeItem(button) {
 // VRIO - Add row
 function addVRIORow() {
     const tbody = document.querySelector('.vrio-table tbody');
-    const index = tbody.children.length;
+    // We count pairs. Logic: find max index or just count pairs? 
+    // Safest is to just count .vrio-main-row
+    const index = tbody.querySelectorAll('.vrio-main-row').length;
 
-    const tr = document.createElement('tr');
-    tr.dataset.index = index;
-    tr.innerHTML = `
-        <td><input type="text" name="resource_${index}_name" placeholder="Resource name"></td>
-        <td><input type="checkbox" name="resource_${index}_valuable"></td>
-        <td><input type="checkbox" name="resource_${index}_rare"></td>
-        <td><input type="checkbox" name="resource_${index}_costly_to_imitate"></td>
-        <td><input type="checkbox" name="resource_${index}_organized"></td>
-        <td class="implication">-</td>
+    // Main Row
+    const trMain = document.createElement('tr');
+    trMain.dataset.index = index;
+    trMain.className = 'vrio-main-row';
+    trMain.innerHTML = `
+        <td>
+            <input type="text" name="resource_${index}_name" placeholder="Resource name" class="resource-name">
+        </td>
+        <td>
+            <div class="slider-container">
+                <input type="range" name="resource_${index}_valuable" min="1" max="5" step="1" value="3" oninput="this.nextElementSibling.value = this.value">
+                <output>3</output>
+            </div>
+        </td>
+        <td>
+            <div class="slider-container">
+                <input type="range" name="resource_${index}_rare" min="1" max="5" step="1" value="3" oninput="this.nextElementSibling.value = this.value">
+                <output>3</output>
+            </div>
+        </td>
+        <td>
+            <div class="slider-container">
+                <input type="range" name="resource_${index}_costly_to_imitate" min="1" max="5" step="1" value="3" oninput="this.nextElementSibling.value = this.value">
+                <output>3</output>
+            </div>
+        </td>
+        <td>
+            <div class="slider-container">
+                <input type="range" name="resource_${index}_organized" min="1" max="5" step="1" value="3" oninput="this.nextElementSibling.value = this.value">
+                <output>3</output>
+            </div>
+        </td>
+        <td class="score-cell">
+            <div class="score-value">-</div>
+            <div class="score-implication"></div>
+        </td>
         <td><button type="button" class="remove-row" onclick="removeVRIORow(this)">×</button></td>
     `;
-    tbody.appendChild(tr);
-    tr.querySelector('input').focus();
 
-    // Add change listeners for implication updates
-    tr.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', () => updateVRIOImplication(tr));
+    // Description Row
+    const trDesc = document.createElement('tr');
+    trDesc.dataset.index = index;
+    trDesc.className = 'vrio-desc-row';
+    trDesc.innerHTML = `
+        <td colspan="7">
+            <textarea name="resource_${index}_description" placeholder="Description / Notes" rows="2" class="resource-desc"></textarea>
+        </td>
+    `;
+
+    tbody.appendChild(trMain);
+    tbody.appendChild(trDesc);
+    trMain.querySelector('input').focus();
+
+    // Add listeners for score updates
+    trMain.querySelectorAll('input[type="range"]').forEach(input => {
+        input.addEventListener('input', () => updateVRIOScore(trMain));
     });
+
+    // Initial calculation
+    updateVRIOScore(trMain);
 
     // Save
     const form = tbody.closest('form');
@@ -235,25 +295,37 @@ function addVRIORow() {
 
 function removeVRIORow(button) {
     const form = button.closest('form');
-    button.closest('tr').remove();
+    const row = button.closest('tr'); // This is the main row
+    const nextRow = row.nextElementSibling; // This should be the description row
+
+    row.remove();
+    if (nextRow && nextRow.classList.contains('vrio-desc-row')) {
+        nextRow.remove();
+    }
+
     handleAutoSave(form);
 }
 
-function updateVRIOImplication(row) {
+function updateVRIOScore(row) {
     const index = row.dataset.index;
-    const valuable = row.querySelector(`input[name="resource_${index}_valuable"]`).checked;
-    const rare = row.querySelector(`input[name="resource_${index}_rare"]`).checked;
-    const costly = row.querySelector(`input[name="resource_${index}_costly_to_imitate"]`).checked;
-    const organized = row.querySelector(`input[name="resource_${index}_organized"]`).checked;
+
+    const v = parseInt(row.querySelector(`input[name="resource_${index}_valuable"]`).value) || 1;
+    const r = parseInt(row.querySelector(`input[name="resource_${index}_rare"]`).value) || 1;
+    const i = parseInt(row.querySelector(`input[name="resource_${index}_costly_to_imitate"]`).value) || 1;
+    const o = parseInt(row.querySelector(`input[name="resource_${index}_organized"]`).value) || 1;
+
+    // Formula: (V * 0.35) + (R * 0.35) + (I * 0.20) + (O * 0.10)
+    const score = (v * 0.35) + (r * 0.35) + (i * 0.20) + (o * 0.10);
 
     let implication;
-    if (!valuable) implication = 'Competitive Disadvantage';
-    else if (!rare) implication = 'Competitive Parity';
-    else if (!costly) implication = 'Temporary Advantage';
-    else if (!organized) implication = 'Unused Advantage';
-    else implication = 'Sustained Advantage';
+    if (score >= 4.5) implication = 'Sustained Advantage';
+    else if (score >= 3.5) implication = 'Temporary Advantage';
+    else if (score >= 2.5) implication = 'Competitive Parity';
+    else implication = 'Competitive Disadvantage';
 
-    row.querySelector('.implication').textContent = implication;
+    const scoreCell = row.querySelector('.score-cell');
+    scoreCell.querySelector('.score-value').textContent = score.toFixed(1);
+    scoreCell.querySelector('.score-implication').textContent = implication;
 }
 
 // Wardley - Add row

@@ -799,6 +799,83 @@ a:hover {
     text-transform: uppercase;
 }
 
+/* VRIO Specific Styles */
+.resource-name {
+    margin-bottom: 0;
+    /* Removed margin as desc is in next row */
+    font-weight: 600;
+    width: 100%;
+}
+
+/* Row Styling */
+.vrio-table tbody tr.vrio-main-row td {
+    border-bottom: none;
+    /* Hide border between main and desc */
+    padding-bottom: 0.25rem;
+}
+
+.vrio-table tbody tr.vrio-desc-row td {
+    padding-top: 0;
+    border-top: none;
+    background-color: rgba(67, 97, 238, 0.05);
+    /* Slight background for grouping */
+}
+
+/* Ensure desc textarea takes full width and looks integrated */
+.resource-desc {
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 60px;
+    width: 100%;
+    margin-top: 0.25rem;
+    background: transparent;
+    border: 1px dashed var(--color-border);
+    color: var(--color-text);
+}
+
+.resource-desc:focus {
+    background: var(--color-bg-input);
+    border-style: solid;
+}
+
+.slider-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.slider-container input[type="range"] {
+    flex: 1;
+    cursor: pointer;
+}
+
+.slider-container output {
+    font-weight: 600;
+    color: var(--color-primary);
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.score-cell {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.score-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.score-implication {
+    font-size: 0.75rem;
+    color: var(--color-text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
 .vrio-table th small {
     display: block;
     font-weight: 400;
