@@ -1,0 +1,22 @@
+[project]
+name = "business-analysis"
+version = "0.1.0"
+description = "A webapp for structured business analysis"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "flask>=3.0",
+    "markdown>=3.5",
+    "weasyprint>=62.0",
+    "google-genai>=1.0",
+    "trafilatura>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Business Analysis - Home{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <h1>Your Businesses</h1>
+    <p class="subtitle">Analyze and track strategic business questions</p>
+</header>
+
+<!-- Business cards grid -->
+<div class="business-grid">
+    {% for biz in businesses %}
+    <a href="{{ url_for('view_business', business_id=biz.id) }}" class="business-card">
+        <span class="business-type-badge {{ biz.type }}">{{ biz.type | replace('_', ' ') | title }}</span>
+        <h3>{{ biz.name }}</h3>
+        {% if biz.description %}
+        <p class="business-description">{{ biz.description[:100] }}{% if biz.description|length > 100 %}...{% endif %}
+        </p>
+        {% endif %}
+        {% if biz.strategic_question %}
+        <p class="strategic-question">❓ {{ biz.strategic_question[:80] }}{% if biz.strategic_question|length > 80
+            %}...{% endif %}</p>
+        {% endif %}
+    </a>
+    {% else %}
+    <div class="empty-state">
+        <p>No businesses yet. Create one to get started!</p>
+    </div>
+    {% endfor %}
+
+    <!-- Add new business card -->
+    <button class="business-card add-card" onclick="showModal('create-business-modal')">
+        <span class="add-icon">+</span>
+        <span>Add Business</span>
+    </button>
+</div>
+
+<!-- Create Business Modal -->
+<div id="create-business-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Create New Business</h2>
+            <button class="close-btn" onclick="hideModal('create-business-modal')">&times;</button>
+        </div>
+        <form action="{{ url_for('create_business') }}" method="POST">
+            <div class="form-group">
+                <label for="name">Business Name *</label>
+                <input type="text" id="name" name="name" required placeholder="e.g., Acme Corp">
+            </div>
+
+            <div class="form-group">
+                <label for="type">Type *</label>
+                <select id="type" name="type" required>
+                    {% for t in business_types %}
+                    <option value="{{ t }}">{{ t | replace('_', ' ') | title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" rows="3"
+                    placeholder="Brief description of the business..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="strategic_question">Strategic Question</label>
+                <input type="text" id="strategic_question" name="strategic_question"
+                    placeholder="e.g., Should we acquire this company?">
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary"
+                    onclick="hideModal('create-business-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create Business</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block title %}{{ business.name }} - Business Analysis{% endblock %}
+
+{% block content %}
+<header class="page-header business-header">
+    <div class="header-content">
+        <span class="business-type-badge {{ business.type }}">{{ business.type | replace('_', ' ') | title }}</span>
+        <h1>{{ business.name }}</h1>
+        {% if business.description %}
+        <p class="description">{{ business.description }}</p>
+        {% endif %}
+        {% if business.strategic_question %}
+        <p class="strategic-question"><strong>Strategic Question:</strong> {{ business.strategic_question }}</p>
+        {% endif %}
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-secondary" onclick="showModal('edit-business-modal')">Edit</button>
+        <form action="{{ url_for('delete_business', business_id=business.id) }}" method="POST" class="inline-form"
+            onsubmit="return confirm('Delete this business and all its data?');">
+            <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+    </div>
+</header>
+
+<!-- Tabs -->
+<nav class="tabs">
+    <button class="tab active" data-tab="research">📚 Research</button>
+    <button class="tab" data-tab="analysis">📊 Analysis</button>
+    <button class="tab" data-tab="summary">📝 Summary</button>
+</nav>
+
+<!-- Research Tab -->
+<section id="research" class="tab-content active">
+    <div class="section-header">
+        <h2>Research Items</h2>
+        <button class="btn btn-primary" onclick="showModal('add-research-modal')">+ Add Item</button>
+    </div>
+
+    <div class="research-items">
+        {% for item in research_items %}
+        <div class="research-item" data-item-id="{{ item.id }}">
+            <div class="item-header">
+                <span class="item-type-badge">{{ item.item_type }}</span>
+                <h3>{{ item.title }}</h3>
+                <div class="item-actions">
+                    <button class="btn btn-sm" onclick="toggleItemContent({{ item.id }})">View</button>
+                    <button class="btn btn-sm" onclick="showEditResearchModal({{ item.id }})">Edit</button>
+                    <form action="{{ url_for('delete_research_item', item_id=item.id) }}" method="POST"
+                        class="inline-form">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% if item.source_reference %}
+            <p class="source-reference">📎 {{ item.source_reference }}</p>
+            {% endif %}
+
+            <!-- Quotes -->
+            {% if item.quotes %}
+            <div class="quotes-summary">
+                <strong>{{ item.quotes|length }} quote(s):</strong>
+                {% for quote in item.quotes[:3] %}
+                <span class="quote-preview">"{{ quote.text[:50] }}..."</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Expandable content -->
+            <div class="item-content" id="content-{{ item.id }}" style="display: none;">
+                <div class="text-container" data-item-id="{{ item.id }}" data-quotes='{{ item.quotes | tojson }}'>
+                    <div class="text-content">{{ item.plain_text }}</div>
+                </div>
+                <div class="quote-actions">
+                    <p class="hint">Select text to create a quote</p>
+                    <div class="quotes-list">
+                        {% for quote in item.quotes %}
+                        <div class="quote" data-quote-id="{{ quote.id }}">
+                            <span class="quote-text">"{{ quote.text }}"</span>
+                            <button class="remove-quote" onclick="deleteQuote({{ quote.id }})">&times;</button>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No research items yet. Add articles, notes, or interviews to analyze.</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Analysis Tab -->
+<section id="analysis" class="tab-content">
+    <div class="section-header">
+        <h2>Analysis Frameworks</h2>
+    </div>
+
+    <div class="analysis-frameworks">
+        {% for template in analysis_templates %}
+        <div class="analysis-framework" data-slug="{{ template.slug }}">
+            <div class="framework-header" onclick="toggleFramework('{{ template.slug }}')">
+                <h3>{{ template.name }}</h3>
+                <p class="framework-description">{{ template.description }}</p>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="framework-content" id="framework-{{ template.slug }}" style="display: none;">
+                <form class="analysis-form" data-business-id="{{ business.id }}" data-slug="{{ template.slug }}">
+                    {{ analyses[template.slug].template.get_html_form(analyses[template.slug].data) | safe }}
+                    <div class="form-actions">
+                        <span id="status-{{ template.slug }}" class="save-status"
+                            style="opacity: 0; color: green; margin-right: 10px; transition: opacity 0.5s;">Saved</span>
+                        <a href="{{ url_for('get_analysis_text', business_id=business.id, slug=template.slug) }}"
+                            target="_blank" class="btn btn-secondary">View as Text</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Summary Tab -->
+<section id="summary" class="tab-content">
+    <div class="section-header">
+        <h2>Summary</h2>
+        <div class="summary-actions">
+            <a href="{{ url_for('export_summary_pdf', business_id=business.id) }}" class="btn btn-secondary">📄 Export
+                PDF</a>
+        </div>
+    </div>
+
+    <div class="summary-editor">
+        <div class="editor-tabs">
+            <button class="editor-tab active" data-view="edit">Edit</button>
+            <button class="editor-tab" data-view="preview">Preview</button>
+        </div>
+
+        <div class="editor-content">
+            <textarea id="summary-markdown"
+                placeholder="Write your analysis summary in Markdown...&#10;&#10;You can reference your research and analyses here to build a comprehensive recommendation."
+                data-business-id="{{ business.id }}">{{ summary.markdown_content if summary else '' }}</textarea>
+            <div id="summary-preview" class="markdown-preview" style="display: none;"></div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-primary" onclick="saveSummary()">Save Summary</button>
+        </div>
+    </div>
+</section>
+
+<!-- Edit Business Modal -->
+<div id="edit-business-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Edit Business</h2>
+            <button class="close-btn" onclick="hideModal('edit-business-modal')">&times;</button>
+        </div>
+        <form action="{{ url_for('update_business', business_id=business.id) }}" method="POST">
+            <div class="form-group">
+                <label for="edit-name">Business Name *</label>
+                <input type="text" id="edit-name" name="name" value="{{ business.name }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-type">Type *</label>
+                <select id="edit-type" name="type" required>
+                    {% for t in business_types %}
+                    <option value="{{ t }}" {% if t==business.type %}selected{% endif %}>{{ t | replace('_', ' ') |
+                        title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-description">Description</label>
+                <textarea id="edit-description" name="description" rows="3">{{ business.description }}</textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-strategic_question">Strategic Question</label>
+                <input type="text" id="edit-strategic_question" name="strategic_question"
+                    value="{{ business.strategic_question }}">
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary"
+                    onclick="hideModal('edit-business-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Research Modal -->
+<div id="add-research-modal" class="modal">
+    <div class="modal-content modal-large">
+        <div class="modal-header">
+            <h2>Add Research Item</h2>
+            <button class="close-btn" onclick="hideModal('add-research-modal')">&times;</button>
+        </div>
+        <form action="{{ url_for('create_research_item', business_id=business.id) }}" method="POST"
+            enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="research-title">Title *</label>
+                <input type="text" id="research-title" name="title" required placeholder="e.g., Q3 Earnings Report">
+            </div>
+
+            <div class="form-group">
+                <label for="research-type">Type *</label>
+                <select id="research-type" name="type" required>
+                    {% for t in research_types %}
+                    <option value="{{ t }}">{{ t | title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="research-source">Source Reference</label>
+                <input type="text" id="research-source" name="source_reference"
+                    placeholder="URL, book reference, interview details...">
+            </div>
+
+            <div class="form-group">
+                <label for="research-file">Upload File (PDF or Audio)</label>
+                <input type="file" id="research-file" name="file" accept=".pdf,.mp3,.wav,.m4a,.ogg,.flac">
+                <p class="hint">Text will be automatically extracted from PDFs. Audio files will be transcribed.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="research-text">Plain Text Content</label>
+                <textarea id="research-text" name="plain_text" rows="10"
+                    placeholder="Paste or type the relevant content here..."></textarea>
+                <p class="hint">If you upload a file, this will be auto-filled. You can also paste text manually.</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary"
+                    onclick="hideModal('add-research-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Item</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Store research items data for JS -->
+<script>
+    window.researchItems = {{ research_items | tojson }};
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='js/quote-highlighter.js') }}"></script>
+<script src="{{ url_for('static', filename='js/analysis-forms.js') }}"></script>
+{% endblock %}
