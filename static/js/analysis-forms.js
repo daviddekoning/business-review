@@ -69,22 +69,35 @@ const debouncedAutoSave = debounce((form) => handleAutoSave(form), 1000);
 
 function handleAutoSave(form) {
     const businessId = form.dataset.businessId;
+    const analysisId = form.dataset.analysisId;
     const slug = form.dataset.slug;
 
     // Collect form data based on analysis type
     const data = collectFormData(form, slug);
 
+    // Use ID-based endpoint if analysis ID is available, otherwise use legacy slug-based
+    let url, method;
+    if (analysisId) {
+        url = `/business/${businessId}/analysis/${analysisId}`;
+        method = 'PUT';
+    } else {
+        // Legacy: use slug-based endpoint
+        url = `/business/${businessId}/analysis/${slug}`;
+        method = 'POST';
+    }
+
     // Save to server
-    fetch(`/business/${businessId}/analysis/${slug}`, {
-        method: 'POST',
+    fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     })
         .then(res => res.json())
         .then(result => {
             if (result.success) {
-                // Optional: Show a subtle indicator instead of a full notification to avoid spamming
-                const statusIndicator = document.getElementById(`status-${slug}`);
+                // Show save status indicator
+                const statusId = analysisId ? `status-${analysisId}` : `status-${slug}`;
+                const statusIndicator = document.getElementById(statusId);
                 if (statusIndicator) {
                     statusIndicator.textContent = 'Saved';
                     statusIndicator.style.opacity = '1';
@@ -208,6 +221,131 @@ function collectWardleyData(form) {
 }
 
 // ===== Dynamic Form Helpers =====
+
+// ===== Analysis CRUD =====
+
+// Toggle framework visibility
+function toggleFramework(id) {
+    const content = document.getElementById(`framework-${id}`);
+    const header = content?.previousElementSibling;
+    if (content) {
+        const isVisible = content.style.display !== 'none';
+        content.style.display = isVisible ? 'none' : 'block';
+        if (header) {
+            const icon = header.querySelector('.toggle-icon');
+            if (icon) icon.textContent = isVisible ? '▼' : '▲';
+        }
+    }
+}
+
+// Update default name when type is selected
+function updateDefaultName() {
+    const typeSelect = document.getElementById('analysis-type');
+    const nameInput = document.getElementById('analysis-name');
+    const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+
+    if (selectedOption && selectedOption.value) {
+        nameInput.value = selectedOption.dataset.name || selectedOption.text;
+    } else {
+        nameInput.value = '';
+    }
+}
+
+// Create a new analysis
+function createNewAnalysis() {
+    const form = document.getElementById('add-analysis-form');
+    const businessId = form.dataset.businessId;
+    const typeSelect = document.getElementById('analysis-type');
+    const nameInput = document.getElementById('analysis-name');
+
+    const templateType = typeSelect.value;
+    const name = nameInput.value.trim();
+
+    if (!templateType) {
+        alert('Please select an analysis type');
+        return;
+    }
+
+    if (!name) {
+        alert('Please enter a name for the analysis');
+        return;
+    }
+
+    fetch(`/business/${businessId}/analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_type: templateType, name: name })
+    })
+        .then(res => res.json())
+        .then(result => {
+            if (result.success) {
+                // Reload the page to show the new analysis
+                location.reload();
+            } else {
+                alert('Error creating analysis: ' + (result.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Error creating analysis:', err);
+            alert('Error creating analysis');
+        });
+}
+
+// Update analysis name
+function updateAnalysisName(analysisId, newName) {
+    const framework = document.querySelector(`[data-analysis-id="${analysisId}"]`);
+    const businessId = framework?.closest('.analysis-frameworks')?.dataset.businessId;
+
+    if (!businessId || !newName.trim()) return;
+
+    fetch(`/business/${businessId}/analysis/${analysisId}/name`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() })
+    })
+        .then(res => res.json())
+        .then(result => {
+            if (!result.success) {
+                console.error('Error updating name:', result.error);
+            }
+        })
+        .catch(err => console.error('Error updating name:', err));
+}
+
+// Delete an analysis
+function deleteAnalysis(analysisId, name) {
+    if (!confirm(`Delete analysis "${name}"? This cannot be undone.`)) {
+        return;
+    }
+
+    const framework = document.querySelector(`[data-analysis-id="${analysisId}"]`);
+    const businessId = framework?.closest('.analysis-frameworks')?.dataset.businessId;
+
+    if (!businessId) return;
+
+    fetch(`/business/${businessId}/analysis/${analysisId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+    })
+        .then(res => res.json())
+        .then(result => {
+            if (result.success) {
+                // Remove from DOM
+                framework.remove();
+                // Show empty state if no analyses left
+                const container = document.querySelector('.analysis-frameworks');
+                if (container && container.querySelectorAll('.analysis-framework').length === 0) {
+                    container.innerHTML = '<div class="empty-state" id="analysis-empty-state"><p>No analyses yet. Click "+ Add Analysis" to create your first analysis.</p></div>';
+                }
+            } else {
+                alert('Error deleting analysis: ' + (result.error || 'Unknown error'));
+            }
+        })
+        .catch(err => {
+            console.error('Error deleting analysis:', err);
+            alert('Error deleting analysis');
+        });
+}
 
 // PESTEL - Add factor item
 function addItem(factor) {
@@ -429,17 +567,30 @@ function addStrategy() {
     });
 }
 
+// Flag to prevent double execution of remove dialogs
+let isRemoveDialogOpen = false;
+
 // Remove a strategy
 function removeStrategy(strategyId) {
-    if (!confirm('Remove this strategy? All related analysis will be deleted.')) return;
+    if (isRemoveDialogOpen) return;
+    isRemoveDialogOpen = true;
+    cancelScenarioSave();  // Cancel any pending saves
 
-    window.scenarioPlanning.strategies = window.scenarioPlanning.strategies.filter(s => s.id !== strategyId);
+    setTimeout(() => {
+        const confirmed = confirm('Remove this strategy? All related analysis will be deleted.');
+        isRemoveDialogOpen = false;
+        if (!confirmed) return;
 
-    // Remove related cells
-    const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.startsWith(strategyId + '_'));
-    keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
+        window.scenarioPlanning.strategies = window.scenarioPlanning.strategies.filter(s => s.id !== strategyId);
 
-    saveScenarioPlanning().then(() => location.reload());
+        // Remove related cells
+        if (window.scenarioPlanning.cells) {
+            const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.startsWith(strategyId + '_'));
+            keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
+        }
+
+        saveScenarioPlanning().then(() => location.reload());
+    }, 100);
 }
 
 // Add a new future
@@ -462,15 +613,25 @@ function addFuture() {
 
 // Remove a future
 function removeFuture(futureId) {
-    if (!confirm('Remove this future? All related analysis will be deleted.')) return;
+    if (isRemoveDialogOpen) return;
+    isRemoveDialogOpen = true;
+    cancelScenarioSave();  // Cancel any pending saves
 
-    window.scenarioPlanning.futures = window.scenarioPlanning.futures.filter(f => f.id !== futureId);
+    setTimeout(() => {
+        const confirmed = confirm('Remove this future? All related analysis will be deleted.');
+        isRemoveDialogOpen = false;
+        if (!confirmed) return;
 
-    // Remove related cells
-    const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.endsWith('_' + futureId));
-    keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
+        window.scenarioPlanning.futures = window.scenarioPlanning.futures.filter(f => f.id !== futureId);
 
-    saveScenarioPlanning().then(() => location.reload());
+        // Remove related cells
+        if (window.scenarioPlanning.cells) {
+            const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.endsWith('_' + futureId));
+            keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
+        }
+
+        saveScenarioPlanning().then(() => location.reload());
+    }, 100);
 }
 
 // Select a cell to edit
@@ -546,8 +707,23 @@ function showScenarioSaveStatus() {
     }
 }
 
-// Debounced save for scenario planning
-const debouncedScenarioSave = debounce(() => saveScenarioPlanning(), 500);
+// Debounced save for scenario planning (cancellable)
+let scenarioSaveTimeout = null;
+function debouncedScenarioSave() {
+    if (scenarioSaveTimeout) {
+        clearTimeout(scenarioSaveTimeout);
+    }
+    scenarioSaveTimeout = setTimeout(() => {
+        saveScenarioPlanning();
+        scenarioSaveTimeout = null;
+    }, 500);
+}
+function cancelScenarioSave() {
+    if (scenarioSaveTimeout) {
+        clearTimeout(scenarioSaveTimeout);
+        scenarioSaveTimeout = null;
+    }
+}
 
 // Initialize scenario planning event listeners
 document.addEventListener('DOMContentLoaded', () => {

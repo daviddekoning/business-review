@@ -640,6 +640,56 @@ a:hover {
     transition: transform var(--transition-fast);
 }
 
+/* New analysis framework styles */
+.framework-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: 1;
+}
+
+.analysis-type-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.25rem 0.75rem;
+    border-radius: 100px;
+    background: var(--color-secondary);
+    color: white;
+    white-space: nowrap;
+}
+
+.analysis-name-input {
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 0.375rem 0.5rem;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--color-text);
+    cursor: text;
+    min-width: 150px;
+}
+
+.analysis-name-input:hover {
+    background: var(--color-bg);
+    border-color: var(--color-border);
+}
+
+.analysis-name-input:focus {
+    outline: none;
+    background: var(--color-bg);
+    border-color: var(--color-primary);
+}
+
+.framework-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .framework-content {
     padding: 1.5rem;
     border-top: 1px solid var(--color-border);

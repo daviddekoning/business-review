@@ -4,7 +4,8 @@ import os
 from pathlib import Path
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 
-from db import init_db, get_db
+from db import init_db
+from db.migrations import run_migrations
 from models import business, research, analysis, summary, scenario_planning
 import analyses
 
@@ -19,9 +20,10 @@ app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50MB max upload
 
 @app.before_request
 def ensure_db():
-    """Ensure database is initialized on first request."""
+    """Ensure database is initialized and migrated on first request."""
     if not hasattr(app, "_db_initialized"):
         init_db()
+        run_migrations()
         app._db_initialized = True
 
 
@@ -63,14 +65,11 @@ def view_business(business_id: int):
     for item in research_items:
         item["quotes"] = research.get_quotes_for_item(item["id"])
 
-    # Get analyses
-    biz_analyses = {}
-    for template in analyses.get_all_templates():
-        existing = analysis.get_analysis(business_id, template.slug)
-        biz_analyses[template.slug] = {
-            "template": template,
-            "data": existing["data"] if existing else template.get_empty_data(),
-        }
+    # Get analyses (list of created analyses)
+    biz_analyses = analysis.get_analyses_for_business(business_id)
+    # Attach template info to each analysis
+    for a in biz_analyses:
+        a["template"] = analyses.get_template(a["template_type"])
 
     # Get summary
     biz_summary = summary.get_summary(business_id)
@@ -228,9 +227,69 @@ def delete_quote(quote_id: int):
 # --- Analyses ---
 
 
-@app.route("/business/<int:business_id>/analysis/<slug>", methods=["POST"])
-def save_analysis(business_id: int, slug: str):
+@app.route("/business/<int:business_id>/analysis", methods=["POST"])
+def create_analysis_route(business_id: int):
+    """Create a new analysis."""
+    data = request.get_json()
+    template_type = data.get("template_type")
+    name = data.get("name", "")
+
+    template = analyses.get_template(template_type)
+    if not template:
+        return jsonify({"error": "Unknown analysis type"}), 404
+
+    if not name:
+        name = template.name
+
+    analysis_id = analysis.create_analysis(business_id, template_type, name)
+    return jsonify({"success": True, "id": analysis_id, "name": name})
+
+
+@app.route("/business/<int:business_id>/analysis/<int:analysis_id>", methods=["PUT"])
+def save_analysis_route(business_id: int, analysis_id: int):
     """Save analysis data."""
+    existing = analysis.get_analysis_by_id(analysis_id)
+    if not existing or existing["business_id"] != business_id:
+        return jsonify({"error": "Analysis not found"}), 404
+
+    data = request.get_json()
+    analysis.save_analysis_by_id(analysis_id, data)
+    return jsonify({"success": True})
+
+
+@app.route(
+    "/business/<int:business_id>/analysis/<int:analysis_id>/name", methods=["PUT"]
+)
+def update_analysis_name_route(business_id: int, analysis_id: int):
+    """Update analysis name."""
+    existing = analysis.get_analysis_by_id(analysis_id)
+    if not existing or existing["business_id"] != business_id:
+        return jsonify({"error": "Analysis not found"}), 404
+
+    data = request.get_json()
+    name = data.get("name", "")
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+
+    analysis.update_analysis_name(analysis_id, name)
+    return jsonify({"success": True})
+
+
+@app.route("/business/<int:business_id>/analysis/<int:analysis_id>", methods=["DELETE"])
+def delete_analysis_route(business_id: int, analysis_id: int):
+    """Delete an analysis."""
+    existing = analysis.get_analysis_by_id(analysis_id)
+    if not existing or existing["business_id"] != business_id:
+        return jsonify({"error": "Analysis not found"}), 404
+
+    analysis.delete_analysis(analysis_id)
+    return jsonify({"success": True})
+
+
+# Keep old route for backward compatibility
+@app.route("/business/<int:business_id>/analysis/<slug>", methods=["POST"])
+def save_analysis_legacy(business_id: int, slug: str):
+    """Save analysis data (legacy route)."""
     template = analyses.get_template(slug)
     if not template:
         return "Unknown analysis type", 404
