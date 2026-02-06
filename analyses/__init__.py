@@ -45,6 +45,17 @@ class AnalysisTemplate(ABC):
         """Convert the analysis data to plain text for LLM consumption."""
         pass
 
+    @abstractmethod
+    def get_input_schema(self) -> dict:
+        """Return JSON Schema describing the analysis data structure.
+
+        This schema defines what data the analysis expects and can be used for:
+        - Validating user/AI input
+        - Guiding LLMs to generate valid analysis data
+        - Documenting the expected structure
+        """
+        pass
+
 
 # Registry of all available templates
 REGISTRY: dict[str, AnalysisTemplate] = {}

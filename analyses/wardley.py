@@ -30,6 +30,43 @@ class WardleyMapAnalysis(AnalysisTemplate):
     def get_empty_data(self) -> dict:
         return {"components": []}
 
+    def get_input_schema(self) -> dict:
+        return {
+            "type": "object",
+            "description": "Wardley Map value chain analysis",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "description": "Value chain components to map",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Component name",
+                            },
+                            "evolution": {
+                                "type": "string",
+                                "enum": ["genesis", "custom", "product", "commodity"],
+                                "description": "Evolution stage: genesis (novel) → commodity (utility)",
+                            },
+                            "visibility": {
+                                "type": "string",
+                                "enum": ["visible", "aware", "hidden"],
+                                "description": "Visibility to customer",
+                            },
+                            "notes": {
+                                "type": "string",
+                                "description": "Notes about this component",
+                            },
+                        },
+                        "required": ["name", "evolution", "visibility"],
+                    },
+                }
+            },
+            "required": ["components"],
+        }
+
     def get_html_form(self, data: dict) -> str:
         components = data.get("components", [])
 

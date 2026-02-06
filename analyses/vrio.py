@@ -19,6 +19,57 @@ class VRIOAnalysis(AnalysisTemplate):
     def get_empty_data(self) -> dict:
         return {"resources": []}
 
+    def get_input_schema(self) -> dict:
+        return {
+            "type": "object",
+            "description": "VRIO analysis data structure",
+            "properties": {
+                "resources": {
+                    "type": "array",
+                    "description": "Resources/capabilities to analyze for competitive advantage",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the resource or capability",
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Notes about the resource",
+                            },
+                            "valuable": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "description": "Does this provide value? (1=low, 5=high)",
+                            },
+                            "rare": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "description": "Is this resource rare? (1=common, 5=very rare)",
+                            },
+                            "costly_to_imitate": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "description": "Is it costly to imitate? (1=easy, 5=very difficult)",
+                            },
+                            "organized": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 5,
+                                "description": "Is the firm organized to capture value? (1=no, 5=fully)",
+                            },
+                        },
+                        "required": ["name"],
+                    },
+                }
+            },
+            "required": ["resources"],
+        }
+
     def get_html_form(self, data: dict) -> str:
         resources = data.get("resources", [])
 

@@ -17,6 +17,78 @@ class ScenarioPlanningAnalysis(AnalysisTemplate):
         """Return the default empty data structure for scenario planning."""
         return {"strategies": [], "futures": [], "cells": {}}
 
+    def get_input_schema(self) -> dict:
+        return {
+            "type": "object",
+            "description": "Scenario planning: strategies vs. possible futures matrix",
+            "properties": {
+                "strategies": {
+                    "type": "array",
+                    "description": "Strategic options to evaluate",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique identifier",
+                            },
+                            "name": {"type": "string", "description": "Strategy name"},
+                            "description": {
+                                "type": "string",
+                                "description": "Strategy description",
+                            },
+                        },
+                        "required": ["id", "name"],
+                    },
+                },
+                "futures": {
+                    "type": "array",
+                    "description": "Possible future scenarios",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "Unique identifier",
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "Future scenario name",
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Description of this future",
+                            },
+                        },
+                        "required": ["id", "name"],
+                    },
+                },
+                "cells": {
+                    "type": "object",
+                    "description": "Matrix cells keyed by 'strategyId_futureId'",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "thoughts": {
+                                "type": "string",
+                                "description": "Analysis of strategy in this future",
+                            },
+                            "summary": {
+                                "type": "string",
+                                "description": "Brief summary for grid display",
+                            },
+                            "rag": {
+                                "type": "string",
+                                "enum": ["", "green", "amber", "red"],
+                                "description": "Red/Amber/Green rating",
+                            },
+                        },
+                    },
+                },
+            },
+            "required": ["strategies", "futures", "cells"],
+        }
+
     def get_html_form(self, data: dict) -> str:
         """Return HTML form for scenario planning grid."""
         strategies = data.get("strategies", [])

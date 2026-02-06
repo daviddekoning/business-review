@@ -59,6 +59,69 @@ class PESTELAnalysis(AnalysisTemplate):
         data["order"] = self.DEFAULT_ORDER
         return data
 
+    def get_input_schema(self) -> dict:
+        factor_items_schema = {
+            "type": "array",
+            "description": "List of factors in this category",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "factor": {
+                        "type": "string",
+                        "description": "The environmental factor",
+                    },
+                    "impact": {
+                        "type": "string",
+                        "description": "Impact on the business",
+                    },
+                },
+                "required": ["factor"],
+            },
+        }
+        return {
+            "type": "object",
+            "description": "PESTEL macro-environmental analysis",
+            "properties": {
+                "political": {
+                    **factor_items_schema,
+                    "description": "Political factors: government policies, regulations, stability",
+                },
+                "economic": {
+                    **factor_items_schema,
+                    "description": "Economic factors: growth, interest rates, inflation",
+                },
+                "social": {
+                    **factor_items_schema,
+                    "description": "Social factors: demographics, culture, lifestyle trends",
+                },
+                "technological": {
+                    **factor_items_schema,
+                    "description": "Technological factors: innovation, automation, digital",
+                },
+                "environmental": {
+                    **factor_items_schema,
+                    "description": "Environmental factors: climate, sustainability, regulations",
+                },
+                "legal": {
+                    **factor_items_schema,
+                    "description": "Legal factors: employment law, consumer protection, safety",
+                },
+                "order": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Order of categories by importance (optional)",
+                },
+            },
+            "required": [
+                "political",
+                "economic",
+                "social",
+                "technological",
+                "environmental",
+                "legal",
+            ],
+        }
+
     def get_html_form(self, data: dict) -> str:
         html_parts = ['<div class="pestel-analysis" id="pestel-container">']
 

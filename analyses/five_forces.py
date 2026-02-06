@@ -53,6 +53,59 @@ class FiveForcesAnalysis(AnalysisTemplate):
             for force in self.FORCES
         }
 
+    def get_input_schema(self) -> dict:
+        force_schema = {
+            "type": "object",
+            "properties": {
+                "significance": {
+                    "type": "string",
+                    "enum": ["high", "medium", "low"],
+                    "description": "Overall significance of this force",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Description of the force in this industry",
+                },
+                "impact": {
+                    "type": "string",
+                    "description": "Impact on the business",
+                },
+            },
+        }
+        return {
+            "type": "object",
+            "description": "Porter's Five Forces analysis data structure",
+            "properties": {
+                "new_entrants": {
+                    **force_schema,
+                    "description": "Threat of new entrants: barriers to entry, capital requirements",
+                },
+                "supplier_power": {
+                    **force_schema,
+                    "description": "Supplier power: number of suppliers, switching costs",
+                },
+                "buyer_power": {
+                    **force_schema,
+                    "description": "Buyer power: price sensitivity, switching costs",
+                },
+                "substitutes": {
+                    **force_schema,
+                    "description": "Threat of substitutes: alternative products",
+                },
+                "rivalry": {
+                    **force_schema,
+                    "description": "Industry rivalry: competition intensity",
+                },
+            },
+            "required": [
+                "new_entrants",
+                "supplier_power",
+                "buyer_power",
+                "substitutes",
+                "rivalry",
+            ],
+        }
+
     def get_html_form(self, data: dict) -> str:
         html_parts = ['<div class="five-forces-analysis">']
 
