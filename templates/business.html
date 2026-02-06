@@ -26,8 +26,7 @@
 <!-- Tabs -->
 <nav class="tabs">
     <button class="tab active" data-tab="research">📚 Research</button>
-    <button class="tab" data-tab="analysis">📊 Analysis</button>
-    <button class="tab" data-tab="scenario-planning">🎯 Scenario Planning</button>
+    <button class="tab" data-tab="strategic-analysis">📊 Strategic Analysis</button>
     <button class="tab" data-tab="summary">📝 Summary</button>
 </nav>
 
@@ -93,10 +92,10 @@
     </div>
 </section>
 
-<!-- Analysis Tab -->
-<section id="analysis" class="tab-content">
+<!-- Strategic Analysis Tab -->
+<section id="strategic-analysis" class="tab-content">
     <div class="section-header">
-        <h2>Analysis Frameworks</h2>
+        <h2>Strategic Analysis</h2>
         <button class="btn btn-primary" onclick="showModal('add-analysis-modal')">+ Add Analysis</button>
     </div>
 
@@ -138,100 +137,6 @@
     </div>
 </section>
 
-<!-- Scenario Planning Tab -->
-<section id="scenario-planning" class="tab-content">
-    <div class="section-header">
-        <h2>Scenario Planning</h2>
-        <div class="scenario-actions">
-            <button class="btn btn-secondary" onclick="addStrategy()">+ Add Strategy</button>
-            <button class="btn btn-secondary" onclick="addFuture()">+ Add Future</button>
-        </div>
-    </div>
-
-    <div class="scenario-planning" data-business-id="{{ business.id }}">
-        {% if scenario_planning.strategies or scenario_planning.futures %}
-        <div class="scenario-grid-container">
-            <table class="scenario-grid">
-                <thead>
-                    <tr>
-                        <th class="corner-cell">Futures \ Strategies</th>
-                        {% for strategy in scenario_planning.strategies %}
-                        <th class="strategy-header" data-id="{{ strategy.id }}">
-                            <div class="header-content">
-                                <input type="text" class="strategy-name" value="{{ strategy.name }}"
-                                    placeholder="Strategy name">
-                                <button type="button" class="remove-btn"
-                                    onclick="event.stopPropagation(); event.preventDefault(); removeStrategy('{{ strategy.id }}'); return false;">×</button>
-                            </div>
-                        </th>
-                        {% endfor %}
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for future in scenario_planning.futures %}
-                    <tr data-future-id="{{ future.id }}">
-                        <td class="future-header">
-                            <div class="header-content">
-                                <input type="text" class="future-name" value="{{ future.name }}"
-                                    placeholder="Future name">
-                                <button type="button" class="remove-btn"
-                                    onclick="event.stopPropagation(); event.preventDefault(); removeFuture('{{ future.id }}'); return false;">×</button>
-                            </div>
-                        </td>
-                        {% for strategy in scenario_planning.strategies %}
-                        {% set cell_key = strategy.id ~ "_" ~ future.id %}
-                        {% set cell = scenario_planning.cells.get(cell_key, {}) %}
-                        <td class="scenario-cell {% if cell.summary %}has-summary{% endif %}"
-                            data-strategy-id="{{ strategy.id }}" data-future-id="{{ future.id }}"
-                            onclick="selectScenarioCell('{{ strategy.id }}', '{{ future.id }}')">
-                            <span class="cell-summary">{{ cell.summary or '—' }}</span>
-                        </td>
-                        {% endfor %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="empty-state">
-            <p>No strategies or futures defined yet. Add strategies (columns) and possible futures (rows) to start
-                scenario planning.</p>
-        </div>
-        {% endif %}
-
-        <!-- Detail Panel -->
-        <div id="scenario-detail-panel" class="scenario-detail-panel" style="display: none;">
-            <div class="detail-header">
-                <h3>Scenario Analysis</h3>
-                <button class="close-btn" onclick="closeScenarioDetail()">×</button>
-            </div>
-            <div class="detail-content">
-                <div class="detail-descriptions">
-                    <div class="description-box">
-                        <label id="strategy-description-label">Strategy Description</label>
-                        <textarea id="strategy-description" placeholder="Describe this strategy..."></textarea>
-                    </div>
-                    <div class="description-box">
-                        <label id="future-description-label">Future Description</label>
-                        <textarea id="future-description" placeholder="Describe this possible future..."></textarea>
-                    </div>
-                </div>
-                <div class="detail-analysis">
-                    <label>Your Analysis</label>
-                    <textarea id="cell-thoughts"
-                        placeholder="How does this strategy perform in this future? What are the implications?"></textarea>
-                </div>
-                <div class="detail-summary">
-                    <label>Summary (shown in grid)</label>
-                    <input type="text" id="cell-summary" placeholder="Brief summary for the grid cell">
-                </div>
-            </div>
-            <div class="form-actions">
-                <span id="scenario-save-status" class="save-status"></span>
-            </div>
-        </div>
-    </div>
-</section>
 
 <!-- Summary Tab -->
 <section id="summary" class="tab-content">
@@ -395,7 +300,6 @@
 <!-- Store research items data for JS -->
 <script>
     window.researchItems = {{ research_items | tojson }};
-    window.scenarioPlanning = {{ scenario_planning | tojson }};
     window.analysisTemplates = [
         {% for template in analysis_templates %}
     { slug: "{{ template.slug }}", name: "{{ template.name }}" } {% if not loop.last %}, {% endif %}

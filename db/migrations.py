@@ -74,9 +74,51 @@ def migration_001_add_analysis_name(conn: sqlite3.Connection) -> None:
     """)
 
 
+def migration_002_scenario_planning_to_analysis(conn: sqlite3.Connection) -> None:
+    """Migrate scenario_planning data to analyses table."""
+    # Check if scenario_planning table exists
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='scenario_planning'"
+    )
+    if not cursor.fetchone():
+        return  # No scenario_planning table, nothing to migrate
+
+    # Get all existing scenario planning data
+    cursor = conn.execute(
+        "SELECT business_id, data_json, created_at, updated_at FROM scenario_planning"
+    )
+    rows = cursor.fetchall()
+
+    for row in rows:
+        business_id = row["business_id"]
+        data_json = row["data_json"]
+        created_at = row["created_at"]
+        updated_at = row["updated_at"]
+
+        # Check if this business already has a scenario_planning analysis
+        existing = conn.execute(
+            "SELECT id FROM analyses WHERE business_id = ? AND template_type = 'scenario_planning'",
+            (business_id,),
+        ).fetchone()
+
+        if existing:
+            continue  # Already migrated
+
+        # Insert as a new analysis
+        conn.execute(
+            """INSERT INTO analyses (business_id, name, template_type, data_json, created_at, updated_at)
+               VALUES (?, 'Scenario Planning', 'scenario_planning', ?, ?, ?)""",
+            (business_id, data_json, created_at, updated_at),
+        )
+
+    conn.commit()
+    print(f"Migrated {len(rows)} scenario planning entries to analyses table")
+
+
 # List of all migrations in order
 MIGRATIONS = [
     (1, migration_001_add_analysis_name),
+    (2, migration_002_scenario_planning_to_analysis),
 ]
 
 

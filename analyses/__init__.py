@@ -72,3 +72,4 @@ from analyses.pestel import PESTELAnalysis
 from analyses.five_forces import FiveForcesAnalysis
 from analyses.vrio import VRIOAnalysis
 from analyses.wardley import WardleyMapAnalysis
+from analyses.scenario_planning import ScenarioPlanningAnalysis

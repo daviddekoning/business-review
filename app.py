@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, redirect, url_for, jsonify, s
 
 from db import init_db
 from db.migrations import run_migrations
-from models import business, research, analysis, summary, scenario_planning
+from models import business, research, analysis, summary
 import analyses
 
 app = Flask(__name__)
@@ -74,9 +74,6 @@ def view_business(business_id: int):
     # Get summary
     biz_summary = summary.get_summary(business_id)
 
-    # Get scenario planning
-    scenario_data = scenario_planning.get_scenario_planning(business_id)
-
     return render_template(
         "business.html",
         business=biz,
@@ -86,7 +83,6 @@ def view_business(business_id: int):
         analyses=biz_analyses,
         analysis_templates=analyses.get_all_templates(),
         summary=biz_summary,
-        scenario_planning=scenario_data,
     )
 
 
@@ -309,17 +305,6 @@ def get_analysis_text(business_id: int, slug: str):
     existing = analysis.get_analysis(business_id, slug)
     data = existing["data"] if existing else template.get_empty_data()
     return template.to_plain_text(data), 200, {"Content-Type": "text/plain"}
-
-
-# --- Scenario Planning ---
-
-
-@app.route("/business/<int:business_id>/scenario-planning", methods=["POST"])
-def save_scenario_planning_route(business_id: int):
-    """Save scenario planning data."""
-    data = request.get_json()
-    scenario_planning.save_scenario_planning(business_id, data)
-    return jsonify({"success": True})
 
 
 # --- Summary ---

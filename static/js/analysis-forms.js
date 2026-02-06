@@ -50,6 +50,32 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initial calc
         updateVRIOScore(row);
     });
+
+    // Check for open analysis to restore
+    const openAnalysisId = sessionStorage.getItem('openAnalysisId');
+    const openTab = sessionStorage.getItem('openTab');
+
+    if (openTab) {
+        // Switch to the correct tab first
+        const tabBtn = document.querySelector(`.tab[data-tab="${openTab}"]`);
+        if (tabBtn) tabBtn.click();
+        sessionStorage.removeItem('openTab');
+    }
+
+    if (openAnalysisId) {
+        const content = document.getElementById(openAnalysisId);
+        if (content) {
+            content.style.display = 'block';
+            const icon = content.parentElement.querySelector('.toggle-icon');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+
+            // Scroll to it
+            setTimeout(() => {
+                content.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
+        sessionStorage.removeItem('openAnalysisId');
+    }
 });
 
 // Debounce helper
@@ -87,7 +113,7 @@ function handleAutoSave(form) {
     }
 
     // Save to server
-    fetch(url, {
+    return fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -106,9 +132,11 @@ function handleAutoSave(form) {
                     }, 2000);
                 }
             }
+            return result;
         })
         .catch(err => {
             console.error('Error saving analysis:', err);
+            throw err;
         });
 }
 
@@ -122,6 +150,8 @@ function collectFormData(form, slug) {
             return collectVRIOData(form);
         case 'wardley':
             return collectWardleyData(form);
+        case 'scenario_planning':
+            return collectScenarioPlanningData(form);
         default:
             return {};
     }
@@ -531,28 +561,78 @@ function removeWardleyRow(button) {
 }
 
 
-// ===== Scenario Planning =====
+// ===== Scenario Planning Data Collection =====
 
-// State for scenario planning
-let selectedStrategyId = null;
-let selectedFutureId = null;
+function collectScenarioPlanningData(form) {
+    // Get data from hidden input
+    const dataInput = form.querySelector('.scenario-data');
+    let data = { strategies: [], futures: [], cells: {} };
+
+    if (dataInput) {
+        try {
+            data = JSON.parse(dataInput.value);
+        } catch (e) {
+            console.error('Error parsing scenario data:', e);
+        }
+    }
+
+    // Update strategy names from visible inputs
+    form.querySelectorAll('.strategy-header').forEach(header => {
+        const strategyId = header.dataset.id;
+        const nameInput = header.querySelector('.strategy-name');
+        if (strategyId && nameInput) {
+            const strategy = data.strategies.find(s => s.id === strategyId);
+            if (strategy) {
+                strategy.name = nameInput.value;
+            }
+        }
+    });
+
+    // Update future names from visible inputs
+    form.querySelectorAll('tr[data-future-id]').forEach(row => {
+        const futureId = row.dataset.futureId;
+        const nameInput = row.querySelector('.future-name');
+        if (futureId && nameInput) {
+            const future = data.futures.find(f => f.id === futureId);
+            if (future) {
+                future.name = nameInput.value;
+            }
+        }
+    });
+
+    return data;
+}
+
+// Helper to get or create scenario data for a form (also syncs names from inputs)
+function getScenarioDataForForm(form) {
+    return collectScenarioPlanningData(form);
+}
+
+function saveScenarioDataToForm(form, data) {
+    const dataInput = form.querySelector('.scenario-data');
+    if (dataInput) {
+        dataInput.value = JSON.stringify(data);
+    }
+}
 
 // Generate unique IDs
 function generateId() {
     return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
-// Get business ID from scenario planning container
-function getScenarioBusinessId() {
-    const container = document.querySelector('.scenario-planning');
-    return container ? container.dataset.businessId : null;
+// Helper to save state before reload
+function saveAnalysisState(form) {
+    const content = form.closest('.framework-content');
+    if (content) {
+        sessionStorage.setItem('openAnalysisId', content.id);
+        sessionStorage.setItem('openTab', 'strategic-analysis');
+    }
 }
 
-// Add a new strategy
-function addStrategy() {
-    if (!window.scenarioPlanning) {
-        window.scenarioPlanning = { strategies: [], futures: [], cells: {} };
-    }
+// Add strategy within a form context
+function addStrategy(button) {
+    const form = button.closest('form');
+    const data = getScenarioDataForForm(form);
 
     const newStrategy = {
         id: generateId(),
@@ -560,44 +640,22 @@ function addStrategy() {
         description: ''
     };
 
-    window.scenarioPlanning.strategies.push(newStrategy);
-    saveScenarioPlanning().then(() => {
-        // Reload to show new column
+    data.strategies.push(newStrategy);
+    saveScenarioDataToForm(form, data);
+    saveAnalysisState(form);
+
+    // Wait for save to complete before reloading
+    handleAutoSave(form).then(() => {
+        location.reload();
+    }).catch(() => {
         location.reload();
     });
 }
 
-// Flag to prevent double execution of remove dialogs
-let isRemoveDialogOpen = false;
-
-// Remove a strategy
-function removeStrategy(strategyId) {
-    if (isRemoveDialogOpen) return;
-    isRemoveDialogOpen = true;
-    cancelScenarioSave();  // Cancel any pending saves
-
-    setTimeout(() => {
-        const confirmed = confirm('Remove this strategy? All related analysis will be deleted.');
-        isRemoveDialogOpen = false;
-        if (!confirmed) return;
-
-        window.scenarioPlanning.strategies = window.scenarioPlanning.strategies.filter(s => s.id !== strategyId);
-
-        // Remove related cells
-        if (window.scenarioPlanning.cells) {
-            const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.startsWith(strategyId + '_'));
-            keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
-        }
-
-        saveScenarioPlanning().then(() => location.reload());
-    }, 100);
-}
-
-// Add a new future
-function addFuture() {
-    if (!window.scenarioPlanning) {
-        window.scenarioPlanning = { strategies: [], futures: [], cells: {} };
-    }
+// Add future within a form context
+function addFuture(button) {
+    const form = button.closest('form');
+    const data = getScenarioDataForForm(form);
 
     const newFuture = {
         id: generateId(),
@@ -605,226 +663,199 @@ function addFuture() {
         description: ''
     };
 
-    window.scenarioPlanning.futures.push(newFuture);
-    saveScenarioPlanning().then(() => {
+    data.futures.push(newFuture);
+    saveScenarioDataToForm(form, data);
+    saveAnalysisState(form);
+
+    // Wait for save to complete before reloading
+    handleAutoSave(form).then(() => {
+        location.reload();
+    }).catch(() => {
         location.reload();
     });
 }
 
-// Remove a future
-function removeFuture(futureId) {
-    if (isRemoveDialogOpen) return;
-    isRemoveDialogOpen = true;
-    cancelScenarioSave();  // Cancel any pending saves
+// Remove strategy from form
+function removeStrategyFromForm(button, strategyId) {
+    if (!confirm('Remove this strategy? All related analysis will be deleted.')) {
+        return;
+    }
 
-    setTimeout(() => {
-        const confirmed = confirm('Remove this future? All related analysis will be deleted.');
-        isRemoveDialogOpen = false;
-        if (!confirmed) return;
+    const form = button.closest('form');
+    const data = getScenarioDataForForm(form);
 
-        window.scenarioPlanning.futures = window.scenarioPlanning.futures.filter(f => f.id !== futureId);
+    data.strategies = data.strategies.filter(s => s.id !== strategyId);
 
-        // Remove related cells
-        if (window.scenarioPlanning.cells) {
-            const keysToRemove = Object.keys(window.scenarioPlanning.cells).filter(k => k.endsWith('_' + futureId));
-            keysToRemove.forEach(k => delete window.scenarioPlanning.cells[k]);
-        }
+    // Remove related cells
+    const keysToRemove = Object.keys(data.cells).filter(k => k.startsWith(strategyId + '_'));
+    keysToRemove.forEach(k => delete data.cells[k]);
 
-        saveScenarioPlanning().then(() => location.reload());
-    }, 100);
+    saveScenarioDataToForm(form, data);
+    saveAnalysisState(form);
+    handleAutoSave(form).then(() => {
+        location.reload();
+    }).catch(() => {
+        location.reload();
+    });
 }
 
-// Select a cell to edit
-function selectScenarioCell(strategyId, futureId) {
-    selectedStrategyId = strategyId;
-    selectedFutureId = futureId;
+// Remove future from form
+function removeFutureFromForm(button, futureId) {
+    if (!confirm('Remove this future? All related analysis will be deleted.')) {
+        return;
+    }
+
+    const form = button.closest('form');
+    const data = getScenarioDataForForm(form);
+
+    data.futures = data.futures.filter(f => f.id !== futureId);
+
+    // Remove related cells
+    const keysToRemove = Object.keys(data.cells).filter(k => k.endsWith('_' + futureId));
+    keysToRemove.forEach(k => delete data.cells[k]);
+
+    saveScenarioDataToForm(form, data);
+    saveAnalysisState(form);
+    handleAutoSave(form).then(() => {
+        location.reload();
+    }).catch(() => {
+        location.reload();
+    });
+}
+
+// Select cell in form context
+function selectScenarioCellInForm(cell, strategyId, futureId) {
+    const form = cell.closest('form');
+    const container = form.querySelector('.scenario-planning-analysis');
+    const panel = container.querySelector('.scenario-detail-panel');
+    const data = getScenarioDataForForm(form);
+
+    // Store current selection on the container
+    container.dataset.selectedStrategy = strategyId;
+    container.dataset.selectedFuture = futureId;
 
     // Highlight selected cell
-    document.querySelectorAll('.scenario-cell').forEach(c => c.classList.remove('selected'));
-    const cell = document.querySelector(`.scenario-cell[data-strategy-id="${strategyId}"][data-future-id="${futureId}"]`);
-    if (cell) cell.classList.add('selected');
+    container.querySelectorAll('.scenario-cell').forEach(c => c.classList.remove('selected'));
+    cell.classList.add('selected');
 
-    // Get strategy and future data
-    const strategy = window.scenarioPlanning.strategies.find(s => s.id === strategyId);
-    const future = window.scenarioPlanning.futures.find(f => f.id === futureId);
+    // Get data
+    const strategy = data.strategies.find(s => s.id === strategyId);
+    const future = data.futures.find(f => f.id === futureId);
     const cellKey = `${strategyId}_${futureId}`;
-    const cellData = window.scenarioPlanning.cells[cellKey] || { thoughts: '', summary: '' };
+    const cellData = data.cells[cellKey] || { thoughts: '', summary: '', rag: '' };
 
-    // Update labels with actual names
-    const strategyName = strategy?.name || 'Strategy';
-    const futureName = future?.name || 'Future';
-    document.getElementById('strategy-description-label').textContent = 'Strategy: ' + (strategyName || 'Unnamed');
-    document.getElementById('future-description-label').textContent = 'Future: ' + (futureName || 'Unnamed');
+    // Update labels
+    const strategyLabel = panel.querySelector('.strategy-description-label');
+    const futureLabel = panel.querySelector('.future-description-label');
+    if (strategyLabel) strategyLabel.textContent = 'Strategy: ' + (strategy?.name || 'Unnamed');
+    if (futureLabel) futureLabel.textContent = 'Future: ' + (future?.name || 'Unnamed');
 
-    // Populate detail panel
-    document.getElementById('strategy-description').value = strategy?.description || '';
-    document.getElementById('future-description').value = future?.description || '';
-    document.getElementById('cell-thoughts').value = cellData.thoughts || '';
-    document.getElementById('cell-summary').value = cellData.summary || '';
+    // Populate form
+    panel.querySelector('.strategy-description').value = strategy?.description || '';
+    panel.querySelector('.future-description').value = future?.description || '';
+    panel.querySelector('.cell-thoughts').value = cellData.thoughts || '';
+    panel.querySelector('.cell-summary-input').value = cellData.summary || '';
 
-    // Show detail panel
-    document.getElementById('scenario-detail-panel').style.display = 'block';
-
-    // Scroll to panel
-    document.getElementById('scenario-detail-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// Close detail panel
-function closeScenarioDetail() {
-    selectedStrategyId = null;
-    selectedFutureId = null;
-    document.getElementById('scenario-detail-panel').style.display = 'none';
-    document.querySelectorAll('.scenario-cell').forEach(c => c.classList.remove('selected'));
-}
-
-// Save scenario planning data
-async function saveScenarioPlanning() {
-    const businessId = getScenarioBusinessId();
-    if (!businessId) return;
-
-    const response = await fetch(`/business/${businessId}/scenario-planning`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(window.scenarioPlanning)
+    // Update RAG selector to show current value
+    const currentRag = cellData.rag || '';
+    panel.querySelectorAll('.rag-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.rag === currentRag);
     });
 
-    const result = await response.json();
-    if (result.success) {
-        showScenarioSaveStatus();
-    }
-    return result;
+    // Show panel
+    panel.style.display = 'block';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Set up event listeners for auto-save
+    setupScenarioPanelListeners(form, container, panel);
 }
 
-function showScenarioSaveStatus() {
-    const status = document.getElementById('scenario-save-status');
-    if (status) {
-        status.textContent = 'Saved';
-        status.style.opacity = '1';
-        status.style.color = 'var(--color-success)';
-        setTimeout(() => {
-            status.style.opacity = '0';
-        }, 2000);
+// Set RAG rating for current cell
+function setScenarioRag(button, ragValue) {
+    const panel = button.closest('.scenario-detail-panel');
+    const container = panel.closest('.scenario-planning-analysis');
+    const form = container.closest('form');
+    const data = getScenarioDataForForm(form);
+
+    const strategyId = container.dataset.selectedStrategy;
+    const futureId = container.dataset.selectedFuture;
+    const cellKey = `${strategyId}_${futureId}`;
+
+    // Update data
+    if (!data.cells[cellKey]) data.cells[cellKey] = {};
+    data.cells[cellKey].rag = ragValue;
+
+    // Update button selection
+    panel.querySelectorAll('.rag-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.rag === ragValue);
+    });
+
+    // Update cell color
+    const cell = container.querySelector(`.scenario-cell[data-strategy-id="${strategyId}"][data-future-id="${futureId}"]`);
+    if (cell) {
+        cell.classList.remove('rag-red', 'rag-amber', 'rag-green');
+        if (ragValue) {
+            cell.classList.add(`rag-${ragValue}`);
+        }
     }
+
+    // Save
+    saveScenarioDataToForm(form, data);
+    handleAutoSave(form);
 }
 
-// Debounced save for scenario planning (cancellable)
-let scenarioSaveTimeout = null;
-function debouncedScenarioSave() {
-    if (scenarioSaveTimeout) {
-        clearTimeout(scenarioSaveTimeout);
-    }
-    scenarioSaveTimeout = setTimeout(() => {
-        saveScenarioPlanning();
-        scenarioSaveTimeout = null;
+
+function setupScenarioPanelListeners(form, container, panel) {
+    const strategyDesc = panel.querySelector('.strategy-description');
+    const futureDesc = panel.querySelector('.future-description');
+    const cellThoughts = panel.querySelector('.cell-thoughts');
+    const cellSummary = panel.querySelector('.cell-summary-input');
+
+    const saveChanges = debounce(() => {
+        const data = getScenarioDataForForm(form);
+        const strategyId = container.dataset.selectedStrategy;
+        const futureId = container.dataset.selectedFuture;
+
+        const strategy = data.strategies.find(s => s.id === strategyId);
+        const future = data.futures.find(f => f.id === futureId);
+        const cellKey = `${strategyId}_${futureId}`;
+
+        if (strategy) strategy.description = strategyDesc.value;
+        if (future) future.description = futureDesc.value;
+
+        if (!data.cells[cellKey]) data.cells[cellKey] = {};
+        data.cells[cellKey].thoughts = cellThoughts.value;
+        data.cells[cellKey].summary = cellSummary.value;
+
+        // Update cell display
+        const cell = container.querySelector(`.scenario-cell[data-strategy-id="${strategyId}"][data-future-id="${futureId}"]`);
+        if (cell) {
+            const summarySpan = cell.querySelector('.cell-summary');
+            if (summarySpan) summarySpan.textContent = cellSummary.value || '—';
+            cell.classList.toggle('has-summary', !!cellSummary.value);
+        }
+
+        saveScenarioDataToForm(form, data);
+        handleAutoSave(form);
     }, 500);
-}
-function cancelScenarioSave() {
-    if (scenarioSaveTimeout) {
-        clearTimeout(scenarioSaveTimeout);
-        scenarioSaveTimeout = null;
-    }
-}
 
-// Initialize scenario planning event listeners
-document.addEventListener('DOMContentLoaded', () => {
-    // Strategy name inputs
-    document.querySelectorAll('.strategy-name').forEach(input => {
-        input.addEventListener('input', (e) => {
-            const header = e.target.closest('.strategy-header');
-            const strategyId = header?.dataset.id;
-            if (strategyId) {
-                const strategy = window.scenarioPlanning.strategies.find(s => s.id === strategyId);
-                if (strategy) {
-                    strategy.name = e.target.value;
-                    debouncedScenarioSave();
-                }
-            }
-        });
+    // Remove old listeners and add new ones
+    [strategyDesc, futureDesc, cellThoughts, cellSummary].forEach(el => {
+        el.oninput = saveChanges;
     });
+}
 
-    // Future name inputs
-    document.querySelectorAll('.future-name').forEach(input => {
-        input.addEventListener('input', (e) => {
-            const row = e.target.closest('tr');
-            const futureId = row?.dataset.futureId;
-            if (futureId) {
-                const future = window.scenarioPlanning.futures.find(f => f.id === futureId);
-                if (future) {
-                    future.name = e.target.value;
-                    debouncedScenarioSave();
-                }
-            }
-        });
-    });
+function closeScenarioDetailInForm(button) {
+    const panel = button.closest('.scenario-detail-panel');
+    const container = panel.closest('.scenario-planning-analysis');
 
-    // Detail panel inputs
-    const strategyDesc = document.getElementById('strategy-description');
-    const futureDesc = document.getElementById('future-description');
-    const cellThoughts = document.getElementById('cell-thoughts');
-    const cellSummary = document.getElementById('cell-summary');
+    panel.style.display = 'none';
+    container.querySelectorAll('.scenario-cell').forEach(c => c.classList.remove('selected'));
+    delete container.dataset.selectedStrategy;
+    delete container.dataset.selectedFuture;
+}
 
-    if (strategyDesc) {
-        strategyDesc.addEventListener('input', () => {
-            if (selectedStrategyId) {
-                const strategy = window.scenarioPlanning.strategies.find(s => s.id === selectedStrategyId);
-                if (strategy) {
-                    strategy.description = strategyDesc.value;
-                    debouncedScenarioSave();
-                }
-            }
-        });
-    }
-
-    if (futureDesc) {
-        futureDesc.addEventListener('input', () => {
-            if (selectedFutureId) {
-                const future = window.scenarioPlanning.futures.find(f => f.id === selectedFutureId);
-                if (future) {
-                    future.description = futureDesc.value;
-                    debouncedScenarioSave();
-                }
-            }
-        });
-    }
-
-    if (cellThoughts) {
-        cellThoughts.addEventListener('input', () => {
-            if (selectedStrategyId && selectedFutureId) {
-                const cellKey = `${selectedStrategyId}_${selectedFutureId}`;
-                if (!window.scenarioPlanning.cells[cellKey]) {
-                    window.scenarioPlanning.cells[cellKey] = {};
-                }
-                window.scenarioPlanning.cells[cellKey].thoughts = cellThoughts.value;
-                debouncedScenarioSave();
-            }
-        });
-    }
-
-    if (cellSummary) {
-        cellSummary.addEventListener('input', () => {
-            if (selectedStrategyId && selectedFutureId) {
-                const cellKey = `${selectedStrategyId}_${selectedFutureId}`;
-                if (!window.scenarioPlanning.cells[cellKey]) {
-                    window.scenarioPlanning.cells[cellKey] = {};
-                }
-                window.scenarioPlanning.cells[cellKey].summary = cellSummary.value;
-
-                // Update the grid cell display
-                const cell = document.querySelector(`.scenario-cell[data-strategy-id="${selectedStrategyId}"][data-future-id="${selectedFutureId}"]`);
-                if (cell) {
-                    const summarySpan = cell.querySelector('.cell-summary');
-                    if (summarySpan) {
-                        summarySpan.textContent = cellSummary.value || '—';
-                    }
-                    if (cellSummary.value) {
-                        cell.classList.add('has-summary');
-                    } else {
-                        cell.classList.remove('has-summary');
-                    }
-                }
-
-                debouncedScenarioSave();
-            }
-        });
-    }
-});
+// ===== Legacy Scenario Planning State (kept for backward compatibility with old data) =====
+// These variables are used by legacy code only
+let selectedStrategyId = null;
+let selectedFutureId = null;

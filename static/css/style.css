@@ -1430,3 +1430,94 @@ a:hover {
     font-size: 0.9rem;
     transition: opacity 0.5s;
 }
+
+/* RAG (Red/Amber/Green) Colors for Scenario Cells */
+.scenario-cell.rag-green {
+    background: rgba(6, 214, 160, 0.25);
+    border-color: rgba(6, 214, 160, 0.5);
+}
+
+.scenario-cell.rag-green:hover {
+    background: rgba(6, 214, 160, 0.35);
+}
+
+.scenario-cell.rag-amber {
+    background: rgba(255, 209, 102, 0.25);
+    border-color: rgba(255, 209, 102, 0.5);
+}
+
+.scenario-cell.rag-amber:hover {
+    background: rgba(255, 209, 102, 0.35);
+}
+
+.scenario-cell.rag-red {
+    background: rgba(239, 71, 111, 0.25);
+    border-color: rgba(239, 71, 111, 0.5);
+}
+
+.scenario-cell.rag-red:hover {
+    background: rgba(239, 71, 111, 0.35);
+}
+
+/* RAG Selector in Detail Panel */
+.detail-rag {
+    margin-bottom: 1.5rem;
+}
+
+.detail-rag label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.rag-selector {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.rag-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    background: var(--color-bg);
+    opacity: 0.5;
+}
+
+.rag-btn:hover {
+    opacity: 0.8;
+    transform: scale(1.1);
+}
+
+.rag-btn.selected {
+    opacity: 1;
+    transform: scale(1.15);
+    box-shadow: 0 0 10px currentColor;
+}
+
+.rag-btn-green {
+    color: #06d6a0;
+    border-color: #06d6a0;
+}
+
+.rag-btn-amber {
+    color: #ffd166;
+    border-color: #ffd166;
+}
+
+.rag-btn-red {
+    color: #ef476f;
+    border-color: #ef476f;
+}
+
+.rag-btn-none {
+    color: var(--color-text-muted);
+    border-color: var(--color-border);
+}
